@@ -59,7 +59,7 @@ export default function StudentsPage() {
             setRows(data);
             setLoading(false);
         })();
-    }, []);  
+    }, []);
 
     // 2) default sort (top-level, not nested) - Additional feature
     useEffect(() => {
