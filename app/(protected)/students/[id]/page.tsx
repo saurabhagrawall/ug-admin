@@ -14,7 +14,7 @@ import { STATUS_OPTIONS, statusToProgress, type AppStatus } from '@/lib/progress
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { Pencil, Trash, CheckSquare, Square, Mail } from 'lucide-react';
-
+import { buildSummary } from '@/lib/summarize';
 
 type Student = {
     id: string;
@@ -77,6 +77,10 @@ export default function StudentProfilePage() {
     const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
     const [editingNoteText, setEditingNoteText] = useState('');
 
+    const [aiSummary, setAiSummary] = useState<string>('');
+    const [summarizing, setSummarizing] = useState(false);
+
+
     // --- note handlers ---
     const startEditNote = (id: string, current: string) => {
         setEditingNoteId(id);
@@ -132,6 +136,30 @@ export default function StudentProfilePage() {
             toast.error(e?.message ?? 'Failed to delete task');
         }
     };
+
+    const runSummary = async () => {
+        if (!student) return;
+        setSummarizing(true);
+        try {
+            const summary = buildSummary({
+                name: student.name,
+                country: student.country,
+                grade: student.grade,
+                status: student.status,
+                tags: [], // if you store tags on student, pass them here
+                lastActive: student.lastActive,
+                lastCommunicationAt: comms[0]?.timestamp,
+                interactions: interactions.slice(0, 10).map((x) => ({ type: x.type, timestamp: x.timestamp })),
+            });
+            setAiSummary(summary);
+            toast.success('AI Summary generated (mock)');
+        } catch (e: any) {
+            toast.error(e?.message ?? 'Failed to summarize');
+        } finally {
+            setSummarizing(false);
+        }
+    };
+
 
     // load core doc + subcollections
     useEffect(() => {
@@ -378,7 +406,28 @@ export default function StudentProfilePage() {
                 </div>
             </div>
 
-
+            <Section
+                title="AI Summary (mock)"
+                right={
+                    <button
+                        onClick={runSummary}
+                        disabled={summarizing}
+                        className="rounded-md bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 text-sm disabled:opacity-60"
+                    >
+                        {summarizing ? 'Summarizing…' : 'Generate'}
+                    </button>
+                }
+            >
+                {aiSummary ? (
+                    <div className="prose prose-sm max-w-none">
+                        {aiSummary.split('\n').map((line, i) => (
+                            <p key={i} className="whitespace-pre-wrap">{line}</p>
+                        ))}
+                    </div>
+                ) : (
+                    <p className="text-sm text-gray-500">No summary yet. Click <em>Generate</em> to create a short advisor brief.</p>
+                )}
+            </Section>
 
             {/* Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

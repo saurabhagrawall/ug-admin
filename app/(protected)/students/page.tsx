@@ -1,10 +1,11 @@
 'use client';
 
 import * as React from 'react';
+
 import { collection, getDocs, orderBy, limit, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { formatDistanceToNow } from 'date-fns';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { getCoreRowModel, useReactTable, getFilteredRowModel, getSortedRowModel, flexRender } from '@tanstack/react-table';
 import type { ColumnDef } from '@tanstack/react-table';
 import StatusBadge from '@/components/status-badge';
@@ -32,12 +33,12 @@ export default function StudentsPage() {
     const [country, setCountry] = useState('All');
     const searchParams = useSearchParams();
     const quick = searchParams.get('qf'); // 'not_contacted_7d' | 'high_intent' | 'needs_essay_help' | null
+    const [sorting, setSorting] = useState<any>([]);
 
-
-    React.useEffect(() => {
+    // 1) load data
+    useEffect(() => {
         (async () => {
             setLoading(true);
-            // basic query: order by lastActive desc, cap to 200
             const col = collection(db, 'students');
             const snap = await getDocs(query(col, orderBy('lastActive', 'desc'), limit(200)));
             const toDate = (x: any) => x?.toDate ? x.toDate() : (x ? new Date(x) : undefined);
@@ -53,13 +54,20 @@ export default function StudentsPage() {
                     highIntent: v.highIntent ?? false,
                     needsEssayHelp: v.needsEssayHelp ?? (Array.isArray(v.tags) ? v.tags.includes('Essay') : false),
                     lastCommunicationAt: toDate(v.lastCommunicationAt),
-                } as Row;
+                };
             });
-
             setRows(data);
             setLoading(false);
         })();
-    }, []);
+    }, []);  
+
+    // 2) default sort (top-level, not nested) - Additional feature
+    useEffect(() => {
+        if (!loading && rows.length && sorting.length === 0) {
+            setSorting([{ id: 'lastActive', desc: true }]);
+        }
+    }, [loading, rows.length, sorting.length]);
+
 
     const filtered = useMemo(() => {
         const now = new Date();
@@ -112,10 +120,13 @@ export default function StudentsPage() {
     const table = useReactTable({
         data: filtered,
         columns,
+        state: { sorting },
+        onSortingChange: setSorting,
         getCoreRowModel: getCoreRowModel(),
         getFilteredRowModel: getFilteredRowModel(),
         getSortedRowModel: getSortedRowModel(),
     });
+
 
     const countries = useMemo(() => ['All', ...Array.from(new Set(rows.map(r => r.country))).sort()], [rows]);
 
@@ -154,8 +165,18 @@ export default function StudentsPage() {
                         {table.getHeaderGroups().map(hg => (
                             <tr key={hg.id}>
                                 {hg.headers.map(h => (
-                                    <th key={h.id} className="text-left px-3 py-2 font-medium">
-                                        {flexRender(h.column.columnDef.header, h.getContext())}
+                                    <th
+                                        key={h.id}
+                                        className="text-left px-3 py-2 font-medium select-none cursor-pointer"
+                                        onClick={h.column.getToggleSortingHandler()}
+                                    >
+                                        <div className="inline-flex items-center gap-1">
+                                            {flexRender(h.column.columnDef.header, h.getContext())}
+                                            {{
+                                                asc: '▲',
+                                                desc: '▼',
+                                            }[h.column.getIsSorted() as 'asc' | 'desc'] ?? null}
+                                        </div>
                                     </th>
                                 ))}
                             </tr>
